@@ -55,7 +55,12 @@ echo "${IMAGE}" > "${OUT}/images.txt"
 
 # Helm chart(s) + raw extension build (JS bundle), for CLI installs / inspection
 cp assets/*/*.tgz "${OUT}/" 2>/dev/null || true
-tar -czf "${OUT}/${NAME}-${VERSION}-dist.tgz" -C dist-pkg "${NAME}-${VERSION}"
+# publish-pkgs moves dist-pkg/ into extensions/<pkg>/<version>[.tgz]
+if [[ -f "extensions/${NAME}/${VERSION}.tgz" ]]; then
+  cp "extensions/${NAME}/${VERSION}.tgz" "${OUT}/${NAME}-${VERSION}-dist.tgz"
+elif [[ -d "dist-pkg/${NAME}-${VERSION}" ]]; then
+  tar -czf "${OUT}/${NAME}-${VERSION}-dist.tgz" -C dist-pkg "${NAME}-${VERSION}"
+fi
 
 (cd "${OUT}" && sha256sum ./* > SHA256SUMS)
 
