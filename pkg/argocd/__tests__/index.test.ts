@@ -36,14 +36,13 @@ describe('extension entry point', () => {
 });
 
 describe('product registration', () => {
-  it('registers the Argo CD product and its route', () => {
+  it('registers the product, a plain landing route and a default-layout section route', () => {
     const plugin = mockPlugin();
 
     extension(plugin);
 
     expect(plugin.addProduct).toHaveBeenCalledTimes(1);
-    expect(plugin.addRoutes).toHaveBeenCalledWith([
-      expect.objectContaining({ name: 'argocd-c-cluster', path: '/argocd/c/:cluster' })
-    ]);
+    expect(plugin.addRoute).toHaveBeenCalledWith('plain', expect.objectContaining({ name: 'argocd-c-cluster', path: '/argocd/c/:cluster' }));
+    expect(plugin.addRoute).toHaveBeenCalledWith('default', expect.objectContaining({ name: 'argocd-c-cluster-section', path: '/argocd/c/:cluster/:section' }));
   });
 });

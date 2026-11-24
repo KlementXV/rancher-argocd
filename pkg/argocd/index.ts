@@ -12,5 +12,8 @@ export default function(plugin: IPlugin): void {
 
   // Top-level "Argo CD" entry in the global menu, next to Continuous Delivery
   plugin.addProduct(require('./product'));
-  plugin.addRoutes(routes);
+
+  for (const { parent, route } of routes) {
+    plugin.addRoute(parent, route);
+  }
 }

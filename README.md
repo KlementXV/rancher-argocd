@@ -2,12 +2,20 @@
 
 Extension Rancher UI qui ajoute une entrée **Argo CD** dans le menu principal de Rancher, dans la section *Global Apps*, au même niveau que *Continuous Delivery* (Fleet).
 
-- **v1 : lien.** Une page qui ouvre Argo CD dans un nouvel onglet. Le SSO OIDC se fait côté Argo CD.
-- **Mode embarqué (optionnel) :** l'UI Argo CD s'affiche dans une iframe directement dans Rancher.
-- **Prête pour l'air-gap :**
-  - aucune ressource externe chargée (icône et traductions sont embarquées) ;
-  - distribuée sous forme d'**image catalogue** OCI ;
-  - URL configurable **à l'installation**, sans rebuild.
+Deux modes, au choix via `plugin.metadata.argocd-embed` :
+
+- **Mode lien (par défaut) :**
+  - la page d'accueil s'affiche **sans barre latérale** (layout `plain` de Rancher, comme la page Extensions) ;
+  - un bouton « Open Argo CD » ;
+  - des raccourcis vers les sections d'Argo CD (Applications, ApplicationSets, Repositories, Clusters, Projects, Settings, User Info, Documentation), qui s'ouvrent dans un nouvel onglet.
+- **Mode iframe (`argocd-embed: "true"`) :**
+  - Argo CD s'affiche dans Rancher ;
+  - **la barre latérale Rancher reprend la navigation d'Argo CD**, avec les settings regroupés ;
+  - chaque entrée charge la section correspondante dans l'iframe ;
+  - deux boutons : « Recharger » et « Ouvrir dans un nouvel onglet ».
+  - Tu peux replier la barre latérale d'Argo CD avec sa flèche (en haut à gauche) : Argo CD mémorise ce choix dans le navigateur, et seule la navigation Rancher reste visible.
+
+Dans les deux modes, rien n'est chargé depuis Internet (prêt pour l'air-gap), et l'URL est configurable **à l'installation**, sans rebuild.
 
 Compatibilité : Rancher **>= 2.10** (`@rancher/shell` 3.x).
 
@@ -43,7 +51,9 @@ data:
   server.content.security.policy: "frame-ancestors 'self' https://rancher.example.com;"
 ```
 
-Puis redémarre `argocd-server`. Rancher et Argo CD doivent être sur **le même domaine parent** (par exemple `rancher.example.com` et `argocd.example.com`). Sinon le cookie de session d'Argo CD (SameSite) est bloqué dans l'iframe, et la connexion SSO tourne en boucle.
+Puis redémarre `argocd-server`.
+
+Pour masquer la barre latérale d'Argo CD dans l'iframe, le plus simple est de la replier une fois avec sa flèche : c'est mémorisé par navigateur. On peut aussi la masquer pour tout le monde avec une feuille CSS (`ui.cssurl` dans `argocd-cm`), mais cela s'applique **aussi** quand on ouvre Argo CD directement, hors de Rancher. Rancher et Argo CD doivent être sur **le même domaine parent** (par exemple `rancher.example.com` et `argocd.example.com`). Sinon le cookie de session d'Argo CD (SameSite) est bloqué dans l'iframe, et la connexion SSO tourne en boucle.
 
 ## Développement
 
@@ -146,13 +156,17 @@ docker push harbor.corp.local/platform/ui-extension-argocd:<version>
 
 ```
 pkg/argocd/
-  index.ts             enregistrement (produit + route)
-  product.ts           entrée du menu global (inStore: management, comme Fleet)
-  routing.ts           route /argocd/c/_
-  config.ts            lecture/validation de la config depuis /v1/uiplugins
-  pages/ArgoCDPage.vue page (lien ou iframe, états "non configuré"/erreur)
-  assets/argocd.svg    icône embarquée
-  l10n/en-us.yaml      traductions
+  index.ts                     enregistrement (produit + routes)
+  product.ts                   entrée du menu global + barre latérale (sections Argo CD)
+  routing.ts                   /argocd/c/_ (layout plain) et /argocd/c/_/:section (layout default)
+  sections.ts                  sections d'Argo CD (chemins UI, icônes, groupes)
+  config.ts                    lecture/validation de la config depuis /v1/uiplugins
+  composables/useArgoConfig.ts config chargée une fois par page (navigation instantanée)
+  pages/ArgoCDHome.vue         accueil : raccourcis (mode lien) ou redirection (mode iframe)
+  pages/ArgoCDEmbed.vue        section d'Argo CD dans l'iframe
+  components/ConfigStatus.vue  états d'erreur / "non configuré"
+  assets/argocd.svg            icône embarquée
+  l10n/en-us.yaml              traductions
 scripts/airgap-bundle.sh
 ```
 
