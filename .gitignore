@@ -76,3 +76,4 @@ extensions/
 charts/
 tmp/
 index.yaml
+dist-pkg/
