@@ -74,7 +74,7 @@ echo "==> Saving image"
 echo "${IMAGE}" > "${OUT}/images.txt"
 
 # Helm chart(s) + raw extension build (JS bundle), taken from the image itself
-find "${WORK}" -path '*charts*' -name "${NAME}-${VERSION}.tgz" -exec cp {} "${OUT}/${NAME}-${VERSION}-chart.tgz" \; -quit
+cp "${WORK}/plugin/${NAME}/${NAME}-${VERSION}.tgz" "${OUT}/${NAME}-${VERSION}-chart.tgz"
 cp "${WORK}/plugin/${NAME}-${VERSION}.tgz" "${OUT}/${NAME}-${VERSION}-dist.tgz"
 cp "${WORK}/index.yaml" "${OUT}/index.yaml"
 
