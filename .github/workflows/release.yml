@@ -22,11 +22,11 @@ jobs:
   release:
     runs-on: ubuntu-latest
     env:
-      TAG: ${{ github.event.release.tag_name || inputs.tag }}
+      RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ env.TAG }}
+          ref: ${{ env.RELEASE_TAG }}
 
       - name: Enable Corepack
         run: corepack enable
@@ -43,8 +43,8 @@ jobs:
         run: |
           expected="$(jq -r .name package.json)-$(jq -r .version package.json)"
           pkg="argocd-$(jq -r .version pkg/argocd/package.json)"
-          if [[ "$TAG" != "$expected" || "$TAG" != "$pkg" ]]; then
-            echo "::error::tag $TAG must equal $expected and $pkg"; exit 1
+          if [[ "$RELEASE_TAG" != "$expected" || "$RELEASE_TAG" != "$pkg" ]]; then
+            echo "::error::tag $RELEASE_TAG must equal $expected and $pkg"; exit 1
           fi
 
       - name: Git identity (needed by publish-pkgs)
@@ -64,4 +64,4 @@ jobs:
       - name: Upload release assets
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload "$TAG" airgap/* --clobber
+        run: gh release upload "$RELEASE_TAG" airgap/* --clobber

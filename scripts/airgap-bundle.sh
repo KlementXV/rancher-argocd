@@ -43,24 +43,40 @@ echo "==> Building catalog image ${IMAGE}"
 # -c: container image instead of GitHub Pages ; -f: rebuild the chart ; -l: podman
 EXTRA=()
 [[ "${RUNTIME}" == "podman" ]] && EXTRA+=(-l)
-[[ "${PUSH}" == "1" ]] && EXTRA+=(-p)
 yarn -s publish-pkgs -c -f -r "${REGISTRY}" -o "${ORG}" "${EXTRA[@]}"
 
 OUT=airgap
 rm -rf "${OUT}" && mkdir -p "${OUT}"
 
+echo "==> Verifying catalog image content"
+# publish-pkgs does not fail when the chart cannot be packaged: check the
+# Helm index served by the image really lists the extension.
+WORK=$(mktemp -d)
+CID=$("${RUNTIME}" create "${IMAGE}")
+trap '"${RUNTIME}" rm -f "${CID}" >/dev/null 2>&1 || true; rm -rf "${WORK}"' EXIT
+"${RUNTIME}" cp "${CID}:/home/plugin-server/plugin-contents/." "${WORK}/"
+
+if ! yq -e ".entries.\"${NAME}\"[] | select(.version == \"${VERSION}\")" "${WORK}/index.yaml" >/dev/null; then
+  echo "ERROR: ${IMAGE} does not list chart ${NAME} ${VERSION} in its index.yaml:" >&2
+  cat "${WORK}/index.yaml" >&2
+  exit 1
+fi
+echo "    index.yaml lists ${NAME} ${VERSION}"
+
+# Push only once the image has been verified
+if [[ "${PUSH}" == "1" ]]; then
+  echo "==> Pushing ${IMAGE}"
+  "${RUNTIME}" push "${IMAGE}"
+fi
+
 echo "==> Saving image"
 "${RUNTIME}" save -o "${OUT}/ui-extension-${NAME}-${VERSION}.tar" "${IMAGE}"
 echo "${IMAGE}" > "${OUT}/images.txt"
 
-# Helm chart(s) + raw extension build (JS bundle), for CLI installs / inspection
-cp assets/*/*.tgz "${OUT}/" 2>/dev/null || true
-# publish-pkgs moves dist-pkg/ into extensions/<pkg>/<version>[.tgz]
-if [[ -f "extensions/${NAME}/${VERSION}.tgz" ]]; then
-  cp "extensions/${NAME}/${VERSION}.tgz" "${OUT}/${NAME}-${VERSION}-dist.tgz"
-elif [[ -d "dist-pkg/${NAME}-${VERSION}" ]]; then
-  tar -czf "${OUT}/${NAME}-${VERSION}-dist.tgz" -C dist-pkg "${NAME}-${VERSION}"
-fi
+# Helm chart(s) + raw extension build (JS bundle), taken from the image itself
+find "${WORK}" -path '*charts*' -name "${NAME}-${VERSION}.tgz" -exec cp {} "${OUT}/${NAME}-${VERSION}-chart.tgz" \; -quit
+cp "${WORK}/plugin/${NAME}-${VERSION}.tgz" "${OUT}/${NAME}-${VERSION}-dist.tgz"
+cp "${WORK}/index.yaml" "${OUT}/index.yaml"
 
 (cd "${OUT}" && sha256sum ./* > SHA256SUMS)
 
