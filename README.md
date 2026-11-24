@@ -75,7 +75,31 @@ kubectl -n cattle-ui-plugin-system edit uiplugin argocd
 
 ## Air-gap
 
-### 1. Sur une machine connectée
+### Option rapide : utiliser les assets d'une release GitHub
+
+Chaque release `argocd-<version>` est construite par la CI (`.github/workflows/release.yml`). Elle contient :
+- `ui-extension-argocd-<version>.tar` : l'image catalogue (`ghcr.io/<owner>/ui-extension-argocd:<version>`) ;
+- le chart Helm et le build brut de l'extension ;
+- un fichier `SHA256SUMS`.
+
+Dans le réseau isolé :
+
+```bash
+sha256sum -c SHA256SUMS
+docker load -i ui-extension-argocd-<version>.tar
+docker tag ghcr.io/<owner>/ui-extension-argocd:<version> harbor.corp.local/platform/ui-extension-argocd:<version>
+docker push harbor.corp.local/platform/ui-extension-argocd:<version>
+```
+
+Puis passe directement à l'[étape 3](#3-dans-rancher-en-admin).
+
+Pour publier une nouvelle version : incrémente `version` dans les deux `package.json`, commit, puis crée la release :
+
+```bash
+gh release create argocd-<version> --generate-notes
+```
+
+### 1. Sur une machine connectée (build local)
 
 Prérequis : `node`, `yarn`, `jq`, `yq`, `helm`, `git`, `docker` (ou `podman` avec `RUNTIME=podman`).
 
@@ -85,7 +109,7 @@ scripts/airgap-bundle.sh harbor.corp.local platform
 
 Le script :
 1. lance les tests ;
-2. construit l'**image catalogue** `harbor.corp.local/platform/ui-extension-rancher-argocd:<version>`, avec le script officiel `publish-pkgs -c` de Rancher (nginx + dépôt Helm + bundle JS) ;
+2. construit l'**image catalogue** `harbor.corp.local/platform/ui-extension-argocd:<version>`, avec le script officiel `publish-pkgs -c` de Rancher (nginx + dépôt Helm + bundle JS) ;
 3. l'exporte dans `airgap/` avec le chart et un fichier `SHA256SUMS`.
 
 L'image de base `registry.suse.com/bci/bci-base` doit être accessible au moment du build.
@@ -96,14 +120,14 @@ Transfère le dossier `airgap/`, puis :
 
 ```bash
 sha256sum -c SHA256SUMS
-docker load -i ui-extension-rancher-argocd-<version>.tar
-docker push harbor.corp.local/platform/ui-extension-rancher-argocd:<version>
+docker load -i ui-extension-argocd-<version>.tar
+docker push harbor.corp.local/platform/ui-extension-argocd:<version>
 ```
 
 ### 3. Dans Rancher (en admin)
 
 1. *Extensions* > ⋮ > **Manage Extension Catalogs** > **Import Extension Catalog**.
-   - *Catalog Image Reference* : `harbor.corp.local/platform/ui-extension-rancher-argocd:<version>`.
+   - *Catalog Image Reference* : `harbor.corp.local/platform/ui-extension-argocd:<version>`.
    - *Image Pull Secret* : seulement si ton registre est authentifié.
 
    Rancher déploie alors l'image dans `cattle-ui-plugin-system` et crée le dépôt Helm correspondant.

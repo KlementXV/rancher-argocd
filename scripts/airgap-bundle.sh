@@ -16,6 +16,7 @@ set -euo pipefail
 REGISTRY="${1:?usage: $0 <registry> <org>}"
 ORG="${2:?usage: $0 <registry> <org>}"
 RUNTIME="${RUNTIME:-docker}"   # or podman
+PUSH="${PUSH:-0}"              # 1: also push the image to <registry>/<org>
 
 cd "$(dirname "$0")/.."
 
@@ -32,6 +33,7 @@ if [[ "${VERSION}" != "${PKG_VERSION}" ]]; then
   exit 1
 fi
 
+ORG=$(echo "${ORG}" | tr "[:upper:]" "[:lower:]")
 IMAGE="${REGISTRY%/}/${ORG}/ui-extension-${NAME}:${VERSION}"
 
 echo "==> Tests"
@@ -41,6 +43,7 @@ echo "==> Building catalog image ${IMAGE}"
 # -c: container image instead of GitHub Pages ; -f: rebuild the chart ; -l: podman
 EXTRA=()
 [[ "${RUNTIME}" == "podman" ]] && EXTRA+=(-l)
+[[ "${PUSH}" == "1" ]] && EXTRA+=(-p)
 yarn -s publish-pkgs -c -f -r "${REGISTRY}" -o "${ORG}" "${EXTRA[@]}"
 
 OUT=airgap
@@ -50,7 +53,9 @@ echo "==> Saving image"
 "${RUNTIME}" save -o "${OUT}/ui-extension-${NAME}-${VERSION}.tar" "${IMAGE}"
 echo "${IMAGE}" > "${OUT}/images.txt"
 
+# Helm chart(s) + raw extension build (JS bundle), for CLI installs / inspection
 cp assets/*/*.tgz "${OUT}/" 2>/dev/null || true
+tar -czf "${OUT}/${NAME}-${VERSION}-dist.tgz" -C dist-pkg "${NAME}-${VERSION}"
 
 (cd "${OUT}" && sha256sum ./* > SHA256SUMS)
 

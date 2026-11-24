@@ -1,0 +1,67 @@
+name: Release (catalog image + air-gap bundle)
+
+# Publish a GitHub release tagged "argocd-<version>" (= pkg/argocd/package.json version).
+# This workflow then:
+#   - builds the Rancher extension catalog image and pushes it to ghcr.io/<owner>/ui-extension-argocd:<version>
+#   - attaches to the release: the image as a .tar (docker load), the Helm chart,
+#     the raw extension build and SHA256SUMS - everything needed for an air-gapped install.
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing release tag to (re)build, e.g. argocd-0.1.0
+        required: true
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    env:
+      TAG: ${{ github.event.release.tag_name || inputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: yarn
+
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile
+
+      - name: Check tag matches versions
+        run: |
+          expected="$(jq -r .name package.json)-$(jq -r .version package.json)"
+          pkg="argocd-$(jq -r .version pkg/argocd/package.json)"
+          if [[ "$TAG" != "$expected" || "$TAG" != "$pkg" ]]; then
+            echo "::error::tag $TAG must equal $expected and $pkg"; exit 1
+          fi
+
+      - name: Git identity (needed by publish-pkgs)
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build catalog image + air-gap bundle
+        run: PUSH=1 scripts/airgap-bundle.sh ghcr.io "${{ github.repository_owner }}"
+
+      - name: Upload release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$TAG" airgap/* --clobber
